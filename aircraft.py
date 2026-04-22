@@ -1,228 +1,234 @@
+from airport import *
 import matplotlib.pyplot as plt
 import math
 
+
 class Aircraft:
-    def __init__(self, id, comp, origin, time):
-        self.id = id
-        self.comp = comp
-        self.origin = origin
-        self.time = time
+  def __init__(self, id, comp, origin, time):
+      self.id = id
+      self.comp = comp
+      self.origin = origin
+      self.time = time
 
-def LoadArrivals (Arrivals):
-    aircrafts = []
+aircrafts = []
 
-    try:
-        S = open("Arrivals", "r")
 
-    except FileNotFoundError:
-        return []
+def LoadArrivals (aircrafts):
 
-    linea1 = S.readline()
-    linea = S.readline()
+  try:
+      S = open("Arrivals", "r")
 
-    while linea != "":
-        elementos = linea.split()
+  except FileNotFoundError:
+      return []
 
-        if len(elementos) == 4:
-            id = elementos[0]
-            origin = elementos[1]
-            time = elementos[2]
-            comp = elementos[3]
+  linea1 = S.readline()
+  linea = S.readline()
 
-            avion = Aircraft(id, comp, origin, time)
+  while linea != "":
+      elementos = linea.split()
 
-            aircrafts.append(avion)
+      if len(elementos) == 4:
+          id = elementos[0]
+          origin = elementos[1]
+          time = elementos[2]
+          comp = elementos[3]
 
-        linea = S.readline()
+          avion = Aircraft(id, comp, origin, time)
+          aircrafts.append(avion)
 
-    S.close()
-    return aircrafts
+      linea = S.readline()
 
-def PlotArrivals (aircrafts):
-    try:
-        hora = time.split(":")[0]
-        horas = [0]*24
+  S.close()
+  return aircrafts
 
-        for avion in aircrafts:
-            hora = int(avion[2].split(":")[0])
-            horas[hora] = horas[hora] + 1
 
-        plt.bar(range(24), horas)
-        plt.xlabel("Hours")
-        plt.ylabel("Number of arrivals")
-        plt.show()
+def PlotArrivals (aircrafts, time):
+  try:
+      hora = time.split(":")[0]
+      horas = [0]*24
 
-    except FileNotFoundError:
-        return []
+      for avion in aircrafts:
+          hora = int(avion[2].split(":")[0])
+          horas[hora] = horas[hora] + 1
 
-def SaveFlights (aircrafts, Aircrafts):
-    R =open("Aircrafts", "w")
-    R.write("AIRCRAFT ORIGIN ARRIVAL AIRLINE\n")
+      plt.bar(range(24), horas)
+      plt.xlabel("Hours")
+      plt.ylabel("Number of arrivals")
+      plt.show()
 
-    if len(aircrafts) == 0:
-        print ("The aircraft list is empty")
-        return
+  except FileNotFoundError:
+      return []
 
-    for avion in aircrafts:
-        id_final = avion.id
-        if id_final == "":
-            id_final = "-"
 
-        origen_final = avion.origin
-        if origen_final == "":
-            origen_final = "-"
+def SaveFlights (aircrafts):
+  R =open("Aircrafts", "w")
+  R.write("AIRCRAFT ORIGIN ARRIVAL AIRLINE\n")
 
-        tiempo_final = avion.time
-        if tiempo_final == "":
-            tiempo_final = "0"
+  if len(aircrafts) == 0:
+      print ("The aircraft list is empty")
+      return
 
-        comp_final = avion.comp
-        if comp_final == "":
-            comp_final = "-"
+  for avion in aircrafts:
+      id_final = avion.id
+      if id_final == "":
+          id_final = "-"
 
-        linea = id_final + " " + origen_final + " " + tiempo_final + " " + comp_final + "\n"
-        R.write(linea)
+      origen_final = avion.origin
+      if origen_final == "":
+          origen_final = "-"
 
-    R.close()
+      tiempo_final = avion.time
+      if tiempo_final == "":
+          tiempo_final = "0"
+
+      comp_final = avion.comp
+      if comp_final == "":
+          comp_final = "-"
+
+      linea = id_final + " " + origen_final + " " + tiempo_final + " " + comp_final + "\n"
+      R.write(linea)
+
+  R.close()
+
 
 def PlotAirlines (aircrafts):
-    try:
-        flights = []
-        comp = []
-        P = open("Arrivals", "r")
-        linea1 = P.readline()
-        linea = P.readline()
+  try:
+      flights = []
+      comp = []
+      P = open("Arrivals", "r")
+      linea1 = P.readline()
+      linea = P.readline()
 
-        while linea != "":
-            trozos = linea.split(" ")
-            aerolinea = trozos[3]
+      while linea != "":
+          trozos = linea.split(" ")
+          aerolinea = trozos[3]
 
-            if aerolinea not in comp:
-                comp.append(aerolinea)
-                flights.append(1)
+          if aerolinea not in comp:
+              comp.append(aerolinea)
+              flights.append(1)
 
-            else:
-                i = comp.index(aerolinea)
-                flights[i] = flights[i] + 1
+          else:
+              i = comp.index(aerolinea)
+              flights[i] = flights[i] + 1
 
-            linea = P.readline()
+          linea = P.readline()
 
-        plt.bar(comp,flights)
-        plt.show()
+      plt.bar(comp,flights)
+      plt.show()
 
-        P.close()
+      P.close()
 
-    except FileNotFoundError:
-        return []
+  except FileNotFoundError:
+      return []
+
 
 def PlotFlightsType (aircrafts):
-    try:
-        sch = []
-        etiquetas = ["Schengen", "No Schengen"]
-        cont_sch = 0
-        cont_no_sch = 0
-        if IsSchengenAirport(code) == True:
-            cont_sch = cont_sch + 1
+  try:
+      sch = []
+      etiquetas = ["Schengen", "No Schengen"]
+      cont_sch = 0
+      cont_no_sch = 0
+      if IsSchengenAirport(code) == True:
+          cont_sch = cont_sch + 1
 
-        else:
-            cont_no_sch = cont_no_sch + 1
+      else:
+          cont_no_sch = cont_no_sch + 1
 
-        sch [0] = cont_sch
-        sch[1] = cont_no_sch
+      sch [0] = cont_sch
+      sch[1] = cont_no_sch
 
-        plt.bar(sch, etiquetas)
-        plt.show()
+      plt.bar(sch, etiquetas)
+      plt.show()
 
-    except FileNotFoundError:
-        return []
+  except FileNotFoundError:
+      return []
 
 def MapFlights (aircrafts):
-    T = open("GoogleEarth.kml", "w")
-    D = open("Airports2", "r")
-    linea1 = D.readline()
-    linea = D.readline()
+  T = open("GoogleEarth.kml", "w")
+  D = open("Airports2", "r")
+  linea1 = D.readline()
+  linea = D.readline()
 
-    T.write('<kml xmlns = "http://www.opengis.net/kml/2.2">\n')
-    T.write("   <Document>\n")
+  T.write('<kml xmlns = "http://www.opengis.net/kml/2.2">\n')
+  T.write("   <Document>\n")
+  T.write('       <Style id="SchengenLine">\n')
+  T.write('           <IconStyle>\n')
+  T.write('               <color>ff00ffff</color>\n')
+  T.write('           </IconStyle>\n')
+  T.write('       </Style>\n')
+  T.write('       <Style id="NoSchengenLine">\n')
+  T.write('           <IconStyle>\n')
+  T.write('               <color>ffff0000</color>\n')
+  T.write('           </IconStyle>\n')
+  T.write('       </Style>\n')
 
-    T.write('       <Style id="SchengenLine">\n')
-    T.write('           <IconStyle>\n')
-    T.write('               <color>ff00ffff</color>\n')
-    T.write('           </IconStyle>\n')
-    T.write('       </Style>\n')
+  i = 0
+  while i < len(airports):
+      elementos = linea.split("\t")
+      code = elementos[0]
+      lat = elementos[1]
+      lon = elementos[2]
 
-    T.write('       <Style id="NoSchengenLine">\n')
-    T.write('           <IconStyle>\n')
-    T.write('               <color>ffff0000</color>\n')
-    T.write('           </IconStyle>\n')
-    T.write('       </Style>\n')
+      if IsSchengenAirport(code) == True:
+          style = '#SchengenLine'
+      else:
+          style = '#NoSchengenLine'
 
-    i = 0
-    while i < len(airports):
-        elementos = linea.split("\t")
-        code = elementos[0]
-        lat = elementos[1]
-        lon = elementos[2]
+      T.write("       <Placemark> <name>", code, "</name>\n")
+      T.write('           <styleUrl>', style, '</styleUrl>\n')
+      T.write("           <LineString>\n")
+      T.write("               <coordinates>\n")
+      T.write('                   ', 2.0785, 41.2971, '\n')
+      T.write('                      ', lat, lon, '\n')
+      T.write("               </coordinates>\n")
+      T.write("           </LineString>\n")
+      T.write("       </Placemark>\n")
+      T.write("   </Document>\n")
+      T.write("</kml>\n")
 
-        if IsSchengenAirport(code) == True:
-            style = '#SchengenLine'
-        else:
-            style = '#NoSchengenLine'
+      i = i + 1
+      linea = D.readline()
 
-        T.write("       <Placemark> <name>", code, "</name>\n")
-        T.write('           <styleUrl>', style, '</styleUrl>\n')
-        T.write("           <LineString>\n")
-        T.write("               <coordinates>\n")
-        T.write('                   ', 2.0785, 41.2971, '\n')
-        T.write('                      ', lat, lon, '\n')
-        T.write("               </coordinates>\n")
-        T.write("           </LineString>\n")
-        T.write("       </Placemark>\n")
-        T.write("   </Document>\n")
-        T.write("</kml>\n")
+  T.close()
+  D.close()
 
-        i = i + 1
-        linea = D.readline()
-
-    T.close()
-    D.close()
 
 def LongDistanceArrivals (aircrafts):
-    try:
-        resultado = []
+  try:
+      resultado = []
 
-        lat_bcn = 41.297445
-        lon_bcn = 2.0832941
+      lat_bcn = 41.297445
+      lon_bcn = 2.0832941
 
-        for a in aircrafts:
-            origen = a.origin
+      for a in aircrafts:
+          origen = a.origin
 
-            for ap in airports:
-                if ap.code == origen:
-                    distancia = Haversine(ap.lat, ap.lon, lat_bcn, lon_bcn)
+          for ap in airports:
+              if ap.code == origen:
+                  distancia = Haversine(ap.lat, ap.lon, lat_bcn, lon_bcn)
 
-                    if distancia > 2000:
-                        resultado.append(a)
+                  if distancia > 2000:
+                      resultado.append(a)
 
-                    break
+                  break
 
-        return resultado
+      return resultado
 
-    except FileNotFoundError:
-        return []
+  except FileNotFoundError:
+      return []
+
 
 def Haversine(lat1, lon1, lat2, lon2):
-    R = 6371
+  R = 6371
 
-    lat1 = math.radians(lat1)
-    lon1 = math.radians(lon1)
-    lat2 = math.radians(lat2)
-    lon2 = math.radians(lon2)
+  lat1 = math.radians(lat1)
+  lon1 = math.radians(lon1)
+  lat2 = math.radians(lat2)
+  lon2 = math.radians(lon2)
 
-    dlat = (lat1 - lat2)
-    dlon = (lon1 - lon2)
+  dlat = (lat1 - lat2)
+  dlon = (lon1 - lon2)
 
-    a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-
-    return R * c
+  a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
+  c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+  return R * c
