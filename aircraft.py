@@ -1,6 +1,7 @@
 from airport import *
 import matplotlib.pyplot as plt
 import math
+from tkinter import messagebox
 
 
 class Aircraft:
@@ -13,60 +14,59 @@ class Aircraft:
 aircrafts = []
 
 
-def LoadArrivals (aircrafts):
+def LoadArrivals (filename):
 
   try:
-      S = open("Arrivals", "r")
+      S = open(filename, "r")
 
-  except FileNotFoundError:
-      return []
-
-  linea1 = S.readline()
-  linea = S.readline()
-
-  while linea != "":
-      elementos = linea.split()
-
-      if len(elementos) == 4:
-          id = elementos[0]
-          origin = elementos[1]
-          time = elementos[2]
-          comp = elementos[3]
-
-          avion = Aircraft(id, comp, origin, time)
-          aircrafts.append(avion)
-
+      linea1 = S.readline()
       linea = S.readline()
 
-  S.close()
-  return aircrafts
+      while linea != "":
+          elementos = linea.split()
 
+          if len(elementos) == 4:
+              id = elementos[0]
+              origin = elementos[1]
+              time = elementos[2]
+              comp = elementos[3]
 
-def PlotArrivals (aircrafts, time):
-  try:
-      hora = time.split(":")[0]
-      horas = [0]*24
+              avion = Aircraft(id, comp, origin, time)
+              aircrafts.append(avion)
 
-      for avion in aircrafts:
-          hora = int(avion[2].split(":")[0])
-          horas[hora] = horas[hora] + 1
+          linea = S.readline()
 
-      plt.bar(range(24), horas)
-      plt.xlabel("Hours")
-      plt.ylabel("Number of arrivals")
-      plt.show()
+      S.close()
+      return aircrafts
 
   except FileNotFoundError:
       return []
 
 
-def SaveFlights (aircrafts):
-  R =open("Aircrafts", "w")
-  R.write("AIRCRAFT ORIGIN ARRIVAL AIRLINE\n")
+def PlotArrivals (aircrafts):
+    if len(aircrafts) == 0:
+        messagebox.showerror("Error", "The aircraft list is empty.\nPlease load arrivals first.")
+        return
+
+    horas = [0]*24
+
+    for avion in aircrafts:
+        hora = int(avion.time.split(":")[0])
+        horas[hora] = horas[hora] + 1
+
+    plt.bar(range(24), horas)
+    plt.xlabel("Hours")
+    plt.ylabel("Number of arrivals")
+    plt.show()
+
+
+def SaveFlights (aircrafts, filename):
 
   if len(aircrafts) == 0:
-      print ("The aircraft list is empty")
-      return
+      return -1
+
+  R =open(filename, "w")
+  R.write("AIRCRAFT ORIGIN ARRIVAL AIRLINE\n")
 
   for avion in aircrafts:
       id_final = avion.id
@@ -92,105 +92,114 @@ def SaveFlights (aircrafts):
 
 
 def PlotAirlines (aircrafts):
-  try:
-      flights = []
-      comp = []
-      P = open("Arrivals", "r")
-      linea1 = P.readline()
-      linea = P.readline()
 
-      while linea != "":
-          trozos = linea.split(" ")
-          aerolinea = trozos[3]
+    if len(aircrafts) == 0:
+        messagebox.showerror("Error", "The aircraft list is empty.\nPlease load arrivals first.")
+        return
 
-          if aerolinea not in comp:
-              comp.append(aerolinea)
-              flights.append(1)
+    flights = []
+    comp = []
 
-          else:
-              i = comp.index(aerolinea)
-              flights[i] = flights[i] + 1
+    for avion in aircrafts:
+        aerolinea = avion.comp
+        if aerolinea not in comp:
+            comp.append(aerolinea)
+            flights.append(1)
 
-          linea = P.readline()
+        else:
+            i = comp.index(aerolinea)
+            flights[i] = flights[i] + 1
 
-      plt.bar(comp,flights)
-      plt.show()
 
-      P.close()
+    plt.bar(comp, flights)
+    plt.xlabel("Airline")
+    plt.ylabel("Number of flights")
+    plt.title("Flights per Airline")
+    plt.xticks(rotation=45, ha="right", fontsize=5)
+    plt.tight_layout()
+    plt.show()
 
-  except FileNotFoundError:
-      return []
 
 
 def PlotFlightsType (aircrafts):
-  try:
-      sch = []
-      etiquetas = ["Schengen", "No Schengen"]
-      cont_sch = 0
-      cont_no_sch = 0
-      if IsSchengenAirport(code) == True:
-          cont_sch = cont_sch + 1
 
-      else:
-          cont_no_sch = cont_no_sch + 1
+    if len(aircrafts) == 0:
+        messagebox.showerror("Error", "The aircraft list is empty.\nPlease load arrivals first.")
+        return
 
-      sch [0] = cont_sch
-      sch[1] = cont_no_sch
+    cont_sch = 0
+    cont_no_sch = 0
 
-      plt.bar(sch, etiquetas)
-      plt.show()
+    for avion in aircrafts:
+        if IsSchengenAirport(avion.origin):
+            cont_sch = cont_sch + 1
 
-  except FileNotFoundError:
-      return []
+        else:
+            cont_no_sch = cont_no_sch + 1
+
+    plt.bar(["Flights"], [cont_sch], label="Schengen", color="yellow")
+    plt.bar(["Flights"], [cont_no_sch], bottom=[cont_sch], label="No Schengen", color="blue")
+    plt.title("Schengen vs Non-Schengen Flights")
+    plt.ylabel("Number of flights")
+    plt.legend()
+    plt.show()
+
+
 
 def MapFlights (aircrafts):
   T = open("GoogleEarth.kml", "w")
-  D = open("Airports2", "r")
-  linea1 = D.readline()
-  linea = D.readline()
 
   T.write('<kml xmlns = "http://www.opengis.net/kml/2.2">\n')
   T.write("   <Document>\n")
+
   T.write('       <Style id="SchengenLine">\n')
-  T.write('           <IconStyle>\n')
+  T.write('           <LineStyle>\n')
   T.write('               <color>ff00ffff</color>\n')
-  T.write('           </IconStyle>\n')
+  T.write('           </LineStyle>\n')
   T.write('       </Style>\n')
+
   T.write('       <Style id="NoSchengenLine">\n')
-  T.write('           <IconStyle>\n')
+  T.write('           <LineStyle>\n')
   T.write('               <color>ffff0000</color>\n')
-  T.write('           </IconStyle>\n')
+  T.write('           </LineStyle>\n')
   T.write('       </Style>\n')
 
-  i = 0
-  while i < len(airports):
-      elementos = linea.split("\t")
-      code = elementos[0]
-      lat = elementos[1]
-      lon = elementos[2]
 
-      if IsSchengenAirport(code) == True:
+  lat_bcn = 41.297445
+  lon_bcn = 2.0832941
+
+  for avion in aircrafts:
+      origen = avion.origin
+
+      ap_origen = None
+      for ap in airports:
+          if ap.code == origen:
+              ap_origen = ap
+              break
+
+      if ap_origen is None:
+          continue
+
+      if IsSchengenAirport(origen):
           style = '#SchengenLine'
       else:
           style = '#NoSchengenLine'
 
-      T.write("       <Placemark> <name>", code, "</name>\n")
-      T.write('           <styleUrl>', style, '</styleUrl>\n')
-      T.write("           <LineString>\n")
-      T.write("               <coordinates>\n")
-      T.write('                   ', 2.0785, 41.2971, '\n')
-      T.write('                      ', lat, lon, '\n')
-      T.write("               </coordinates>\n")
-      T.write("           </LineString>\n")
-      T.write("       </Placemark>\n")
-      T.write("   </Document>\n")
-      T.write("</kml>\n")
+      T.write(f'       <Placemark>\n')
+      T.write(f'           <name>{avion.id}</name>\n')
+      T.write(f'           <styleUrl>{style}</styleUrl>\n')
+      T.write(f'           <LineString>\n')
+      T.write(f'               <coordinates>\n')
+      T.write(f'                   {ap_origen.lon},{ap_origen.lat},0\n')
+      T.write(f'                   {lon_bcn},{lat_bcn},0\n')
+      T.write(f'               </coordinates>\n')
+      T.write(f'           </LineString>\n')
+      T.write(f'       </Placemark>\n')
 
-      i = i + 1
-      linea = D.readline()
+  T.write("   </Document>\n")
+  T.write("</kml>\n")
 
   T.close()
-  D.close()
 
 
 def LongDistanceArrivals (aircrafts):
@@ -231,4 +240,5 @@ def Haversine(lat1, lon1, lat2, lon2):
 
   a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
   c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+
   return R * c
