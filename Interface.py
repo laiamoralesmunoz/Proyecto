@@ -5,8 +5,19 @@ from tkinter import *
 from airport import *
 from tkinter import filedialog
 from LEBL import *
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from tkinter import ttk
+import os
 
+# Variables globales de estado de la aplicación
 bcn = None
+gates_assigned = False
+current_terminal_index = 0
+departures = []
+movements = []
+night_aircrafts = []
+gates_assigned_at_time = False
 
 
 def RefreshAirportList():
@@ -16,175 +27,29 @@ def RefreshAirportList():
         airport_listbox.insert(tk.END, f"{a.code}   {a.lat:.6f}   {a.lon:.6f}   [{schengen_str}]")
 
 
-def GetSelectedAirportCode():
-    sel = airport_listbox.curselection()
-    if not sel:
-        return None
-    line = airport_listbox.get(sel[0])
-    return line.split()[0]
-
-
-# Versión 1
-
-def AddClick():
-    def ask_code():
-        dialog = tk.Toplevel(window)
-        dialog.title("A")
-        dialog.resizable(False, False)
-        dialog.grab_set()
-
-        tk.Label(dialog, text="Código ICAO (4 letras):").pack(padx=20, pady=(15, 5))
-        code_entry = tk.Entry(dialog, width=20)
-        code_entry.pack(padx=20)
-        code_entry.focus()
-
-        def on_ok():
-            code = code_entry.get().strip().upper()
-            if len(code) != 4:
-                messagebox.showerror("Error", "El código debe tener 4 letras.", parent=dialog)
-                return
-            dialog.destroy()
-            ask_lat(code)
-
-        def on_cancel():
-            dialog.destroy()
-
-        btn_frame = tk.Frame(dialog)
-        btn_frame.pack(pady=15)
-        tk.Button(btn_frame, text="OK", width=8, command=on_ok).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Cancel", width=8, command=on_cancel).pack(side=tk.LEFT, padx=5)
-        code_entry.bind("<Return>", lambda e: on_ok())
-
-    def ask_lat(code):
-        dialog = tk.Toplevel(window)
-        dialog.title("L...")
-        dialog.resizable(False, False)
-        dialog.grab_set()
-
-        tk.Label(dialog, text="Latitud decimal (ej. 41.297445):").pack(padx=20, pady=(15, 5))
-        lat_entry = tk.Entry(dialog, width=20)
-        lat_entry.pack(padx=20)
-        lat_entry.focus()
-
-        def on_ok():
-            try:
-                lat = float(lat_entry.get().strip())
-            except ValueError:
-                messagebox.showerror("Error", "Introduce un número decimal válido.", parent=dialog)
-                return
-            dialog.destroy()
-            ask_lon(code, lat)
-
-        def on_cancel():
-            dialog.destroy()
-
-        btn_frame = tk.Frame(dialog)
-        btn_frame.pack(pady=15)
-        tk.Button(btn_frame, text="OK", width=8, command=on_ok).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Cancel", width=8, command=on_cancel).pack(side=tk.LEFT, padx=5)
-        lat_entry.bind("<Return>", lambda e: on_ok())
-
-    def ask_lon(code, lat):
-        dialog = tk.Toplevel(window)
-        dialog.title("Lo...")
-        dialog.resizable(False, False)
-        dialog.grab_set()
-
-        tk.Label(dialog, text="Longitud decimal (ej. 2.083294):").pack(padx=20, pady=(15, 5))
-        lon_entry = tk.Entry(dialog, width=20)
-        lon_entry.pack(padx=20)
-        lon_entry.focus()
-
-        def on_ok():
-            try:
-                lon = float(lon_entry.get().strip())
-            except ValueError:
-                messagebox.showerror("Error", "Introduce un número decimal válido.", parent=dialog)
-                return
-            dialog.destroy()
-            a1 = airport(code, lat, lon)
-            AddAirport(airports, a1)
-            RefreshAirportList()
-            messagebox.showinfo("Add Airport", f"Aeropuerto {code} añadido.")
-
-        def on_cancel():
-            dialog.destroy()
-
-        btn_frame = tk.Frame(dialog)
-        btn_frame.pack(pady=15)
-        tk.Button(btn_frame, text="OK", width=8, command=on_ok).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Cancel", width=8, command=on_cancel).pack(side=tk.LEFT, padx=5)
-        lon_entry.bind("<Return>", lambda e: on_ok())
-
-    ask_code()
-
-
-def DeleteClick():
-    dialog = tk.Toplevel(window)
-    dialog.title("Delete Airport")
-    dialog.resizable(False, False)
-    dialog.grab_set()
-
-    tk.Label(dialog, text="Airport ICAO code to delete:").pack(padx=20, pady=(15, 5))
-    entry = tk.Entry(dialog, width=20)
-
-    selected = GetSelectedAirportCode()
-    if selected:
-        entry.insert(0, selected)
-
-    entry.pack(padx=20)
-    entry.focus()
-    entry.select_range(0, tk.END)
-
-    def on_ok():
-        code = entry.get().strip().upper()
-        if len(code) == 0:
-            messagebox.showerror("Error", "Please enter an airport code.", parent=dialog)
-            return
-        result = RemoveAirport(airports, code)
-        if result == -1:
-            messagebox.showerror("Error", f"Airport '{code}' not found in the list.", parent=dialog)
-        else:
-            dialog.destroy()
-            RefreshAirportList()
-            messagebox.showinfo("Delete Airport", f"Airport '{code}' removed.")
-
-    entry.bind("<Return>", lambda e: on_ok())
-
-    btn_frame = tk.Frame(dialog)
-    btn_frame.pack(pady=15)
-    tk.Button(btn_frame, text="Delete", width=8, command=on_ok).pack(side=tk.LEFT, padx=5)
-    tk.Button(btn_frame, text="Cancel", width=8, command=dialog.destroy).pack(side=tk.LEFT, padx=5)
-
+# ── Versión 1: gestión de aeropuertos ──────────────────────────────────────────
 
 def LoadClick():
     filename = filedialog.askopenfilename()
-    if filename:
-        LoadAirports(filename)
-        RefreshAirportList()
-
-
-def SetSchengenClick():
-    code = GetSelectedAirportCode()
-    if code is None:
-        messagebox.showerror("Error", "Selecciona un aeropuerto de la lista.")
+    if not filename:
         return
-    for a in airports:
-        if a.code == code:
-            SetSchengen(a)
-            RefreshAirportList()
-            messagebox.showinfo("Set Schengen", f"{code} -> Schengen: {a.schengen}")
-            break
 
+    previous_count = len(airports)
+    LoadAirports(filename)
+    loaded = len(airports) - previous_count
 
-def ShowClick():
-    if len(airports) == 0:
-        messagebox.showinfo("Airport List", "No airports loaded.")
+    if loaded == 0:
+        messagebox.showerror(
+            "Error",
+            "No airports were loaded.\n"
+            "Make sure the file has the correct format:\n"
+            "CODE LAT LON\n"
+            "LEBL N412809 E0020500\n..."
+        )
         return
-    texto = ""
-    for a in airports:
-        texto = texto + f"{a.code} Lat:{a.lat:.4f} Lon:{a.lon:.4f} Schengen:{a.schengen}\n"
-    messagebox.showinfo("Airport List", texto)
+
+    RefreshAirportList()
+    messagebox.showinfo("Load Airports", f"{loaded} airports loaded successfully.")
 
 
 def SaveSchengenClick():
@@ -200,20 +65,196 @@ def SaveSchengenClick():
             messagebox.showinfo("Save Schengen", "Schengen airports saved successfully.")
 
 
-def PlotAirportsClick():
-    PlotAirports(airports)
-
-
 def GoogleEarthClick():
+    if len(airports) == 0:
+        messagebox.showerror("Error", "No airports loaded.\nPlease load airports first.")
+        return
+
     MapAirports(airports)
+    os.startfile("GoogleEarth_Airports.kml")
 
 
-# Versión 2
+airport_plot_canvas = None
+
+
+def PlotAirportsInside():
+    # Dibuja el gráfico dentro de la ventana en lugar de abrir una ventana nueva
+    global airport_plot_canvas
+
+    if len(airports) == 0:
+        messagebox.showerror("Error", "No airports loaded.")
+        return
+
+    schengen = 0
+    no_schengen = 0
+
+    for a in airports:
+        if a.schengen:
+            schengen += 1
+        else:
+            no_schengen += 1
+
+    fig = Figure(figsize=(4.4, 3.6), dpi=100)
+    ax = fig.add_subplot(111)
+
+    ax.bar(["Airports"], [schengen], label="Schengen", color="yellow")
+    ax.bar(["Airports"], [no_schengen], bottom=[schengen], label="No Schengen", color="blue")
+
+    ax.set_title("Schengen vs No Schengen")
+    ax.set_ylabel("Number of airports")
+    ax.legend()
+
+    if airport_plot_canvas is not None:
+        airport_plot_canvas.get_tk_widget().destroy()
+
+    airport_plot_canvas = FigureCanvasTkAgg(fig, master=airport_plot_frame)
+    airport_plot_canvas.draw()
+    airport_plot_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+
+def AddAirportFromEntries():
+    code = add_code_entry.get().strip().upper()
+    lat_text = add_lat_entry.get().strip()
+    lon_text = add_lon_entry.get().strip()
+
+    if len(code) != 4:
+        messagebox.showerror("Error", "ICAO code must have 4 characters.")
+        return
+
+    try:
+        lat = float(lat_text)
+        lon = float(lon_text)
+    except ValueError:
+        messagebox.showerror("Error", "Latitude and longitude must be numbers.")
+        return
+
+    a = airport(code, lat, lon)
+    AddAirport(airports, a)
+    RefreshAirportList()
+
+    # Limpiar los campos de entrada tras añadir
+    add_code_entry.delete(0, tk.END)
+    add_lat_entry.delete(0, tk.END)
+    add_lon_entry.delete(0, tk.END)
+
+
+def DeleteAirportFromEntry():
+    code = delete_code_entry.get().strip().upper()
+
+    if len(code) != 4:
+        messagebox.showerror("Error", "ICAO code must have 4 characters.")
+        return
+
+    result = RemoveAirport(airports, code)
+
+    if result == -1:
+        messagebox.showerror("Error", f"Airport {code} not found.")
+    else:
+        RefreshAirportList()
+        delete_code_entry.delete(0, tk.END)
+
+
+def SetSchengenFromEntry():
+    code = set_code_entry.get().strip().upper()
+
+    if len(code) != 4:
+        messagebox.showerror("Error", "ICAO code must have 4 characters.")
+        return
+
+    found = False
+
+    i = 0
+    while i < len(airports) and not found:
+        a = airports[i]
+        if a.code == code:
+            SetSchengen(a)
+            found = True
+        i = i + 1
+
+    if not found:
+        messagebox.showerror("Error", f"Airport {code} not found.")
+    else:
+        RefreshAirportList()
+        set_code_entry.delete(0, tk.END)
+        messagebox.showinfo("Set Schengen", f"{code} -> Schengen: {a.schengen}")
+
+
+# ── Versión 2: gestión de vuelos ───────────────────────────────────────────────
 
 def ArrivalsClick():
     filename = filedialog.askopenfilename()
+    if not filename:
+        return
+
+    aircrafts.clear()
+    aircrafts.extend(LoadArrivals(filename))
+
+    if len(aircrafts) == 0:
+        messagebox.showerror(
+            "Error",
+            "No arrivals were loaded.\n"
+            "Make sure the file has the correct format:\n"
+            "AIRCRAFT ORIGIN ARRIVAL AIRLINE\n"
+            "ECMKV LYBE 0:04 VLG\n..."
+        )
+        return
+
+    RefreshArrivalsList()
+    messagebox.showinfo("Load Arrivals", f"{len(aircrafts)} flights loaded.")
+
+
+def LoadDeparturesClick():
+    global departures
+    global movements
+    global night_aircrafts
+
+    if len(aircrafts) == 0:
+        messagebox.showerror(
+            "Error",
+            "No arrivals loaded.\nPlease load arrivals first."
+        )
+        return
+
+    filename = filedialog.askopenfilename()
+
     if filename:
-        LoadArrivals(filename)
+        departures.clear()
+        departures.extend(LoadDepartures(filename))
+
+        if len(departures) == 0:
+            messagebox.showerror(
+                "Error",
+                "No departures were loaded.\n"
+                "Make sure the file has the correct format:\n"
+                "AIRCRAFT DESTINATION DEPARTURE AIRLINE\n"
+                "ECMKV LYBE 0:04 VLG\n..."
+            )
+            return
+
+        result = MergeMovements(aircrafts, departures)
+
+        if result == -1:
+            messagebox.showerror(
+                "Error",
+                "Could not merge arrivals and departures."
+            )
+            return
+
+        movements.clear()
+        movements.extend(result)
+
+        night_result = NightAircraft(movements)
+
+        if night_result == -1:
+            night_aircrafts.clear()
+        else:
+            night_aircrafts.clear()
+            night_aircrafts.extend(night_result)
+
+        messagebox.showinfo("Load Departures",
+                            f"Departures loaded: {len(departures)}\n"
+                            f"Movements merged: {len(movements)}\n"
+                            f"Night aircrafts: {len(night_aircrafts)}")
 
 
 def SaveAircraftClick():
@@ -226,23 +267,16 @@ def SaveAircraftClick():
         SaveFlights(aircrafts, filename)
 
 
-def PlotArrivalsTimeClick():
-    PlotArrivals(aircrafts)
-
-
-def PlotArrivalsCompanyClick():
-    PlotAirlines(aircrafts)
-
-
-def PlotSchengenClick():
-    PlotFlightsType(aircrafts)
-
-
 def ShowTrajectoriesClick():
     if len(aircrafts) == 0:
         messagebox.showinfo("Trajectories", "No hay vuelos cargados.")
         return
 
+    if len(airports) == 0:
+        messagebox.showerror("Error", "No airports loaded.\nPlease load airports first.")
+        return
+
+    # Mostrar ventana de confirmación con la lista de vuelos antes de generar el KML
     top = tk.Toplevel(window)
     top.title("Show Trajectories")
     top.geometry("420x400")
@@ -260,24 +294,220 @@ def ShowTrajectoriesClick():
     scrollbar.config(command=listbox.yview)
 
     for av in aircrafts:
-        listbox.insert(tk.END, f"{av.id}  {av.origin}  {av.time}  {av.comp}")
+        listbox.insert(tk.END, f"{av.id}  {av.origin}  {av.time_landing}  {av.comp}")
 
     def on_show():
         top.destroy()
-        MapFlights(aircrafts)
+        MapFlights(aircrafts, "GoogleEarth_Trajectories.kml")
+        os.startfile("GoogleEarth_Trajectories.kml")
 
-    tk.Button(top, text="Mostrar en Google Earth (KML)", command=on_show).pack(pady=8)
+    tk.Button(top, text="Create Trajectories KML", command=on_show).pack(pady=8)
 
 
 def LongTrajectoriesClick():
+    if len(aircrafts) == 0:
+        messagebox.showerror("Error", "No arrivals loaded.")
+        return
+
+    if len(airports) == 0:
+        messagebox.showerror("Error", "No airports loaded.\nPlease load airports first.")
+        return
+
     long_flights = LongDistanceArrivals(aircrafts)
+
     if len(long_flights) == 0:
         messagebox.showinfo("Long Trajectories", "No long distance arrivals found (>2000 km).")
         return
-    MapFlights(long_flights)
+
+    top = tk.Toplevel(window)
+    top.title("Show Long Trajectories")
+    top.geometry("420x400")
+
+    tk.Label(top, text="Long distance flights:", font=("Courier", 10, "bold")).pack(pady=(10, 2))
+
+    frame = tk.Frame(top)
+    frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+    scrollbar = tk.Scrollbar(frame)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    listbox = tk.Listbox(frame, yscrollcommand=scrollbar.set, font=("Courier", 10))
+    listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    scrollbar.config(command=listbox.yview)
+
+    for av in long_flights:
+        listbox.insert(tk.END, f"{av.id}  {av.origin}  {av.time_landing}  {av.comp}")
+
+    def on_show():
+        top.destroy()
+        MapFlights(long_flights, "GoogleEarth_LongTrajectories.kml")
+        os.startfile("GoogleEarth_LongTrajectories.kml")
+
+    tk.Button(top, text="Create Long Trajectories KML", command=on_show).pack(pady=8)
 
 
-# Versión 3
+def RefreshArrivalsList():
+    arrivals_listbox.delete(0, tk.END)
+
+    arrivals_listbox.insert(tk.END, f"{'ID':<10} {'ORIGIN':<8} {'TIME':<8} {'AIRLINE'}")
+    arrivals_listbox.insert(tk.END, "-" * 40)
+
+    for a in aircrafts:
+        arrivals_listbox.insert(tk.END, f"{a.id:<10} {a.origin:<8} {a.time_landing:<8} {a.comp}")
+
+
+def PlotArrivalsTimeInside():
+    global arrivals_time_canvas
+
+    if len(aircrafts) == 0:
+        messagebox.showerror("Error", "No arrivals loaded.")
+        return
+
+    horas = [0] * 24
+
+    for avion in aircrafts:
+        hora = int(avion.time_landing.split(":")[0])
+        horas[hora] = horas[hora] + 1
+
+    fig = Figure(figsize=(5.2, 3.5), dpi=100)
+    ax = fig.add_subplot(111)
+
+    ax.bar(range(24), horas)
+    ax.set_title("Arrivals / Time")
+    ax.set_xlabel("Hour")
+    ax.set_ylabel("Flights")
+
+    if arrivals_time_canvas is not None:
+        arrivals_time_canvas.get_tk_widget().destroy()
+
+    arrivals_time_canvas = FigureCanvasTkAgg(fig, master=arrivals_time_frame)
+    arrivals_time_canvas.draw()
+    arrivals_time_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=False)
+
+
+def PlotAirlinesInside():
+    global arrivals_company_canvas
+
+    if len(aircrafts) == 0:
+        messagebox.showerror("Error", "No arrivals loaded.")
+        return
+
+    flights = []
+    comp = []
+
+    for avion in aircrafts:
+        aerolinea = avion.comp
+
+        if aerolinea not in comp:
+            comp.append(aerolinea)
+            flights.append(1)
+        else:
+            i = comp.index(aerolinea)
+            flights[i] = flights[i] + 1
+
+    fig = Figure(figsize=(5.2, 3.5), dpi=100)
+    ax = fig.add_subplot(111)
+
+    ax.bar(comp, flights)
+    ax.set_title("Arrivals / Company")
+    ax.set_xlabel("Airline")
+    ax.set_ylabel("Flights")
+    ax.tick_params(axis="x", labelrotation=90, labelsize=6)
+
+    if arrivals_company_canvas is not None:
+        arrivals_company_canvas.get_tk_widget().destroy()
+
+    arrivals_company_canvas = FigureCanvasTkAgg(fig, master=arrivals_company_frame)
+    arrivals_company_canvas.draw()
+    arrivals_company_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=False)
+
+
+def PlotFlightsTypeInside():
+    global arrivals_schengen_canvas
+
+    if len(aircrafts) == 0:
+        messagebox.showerror("Error", "No arrivals loaded.")
+        return
+
+    cont_sch = 0
+    cont_no_sch = 0
+
+    for avion in aircrafts:
+        if IsSchengenAirport(avion.origin):
+            cont_sch = cont_sch + 1
+        else:
+            cont_no_sch = cont_no_sch + 1
+
+    fig = Figure(figsize=(5.2, 3.5), dpi=100)
+    ax = fig.add_subplot(111)
+
+    ax.bar(["Flights"], [cont_sch], label="Schengen", color="yellow")
+    ax.bar(["Flights"], [cont_no_sch], bottom=[cont_sch], label="No Schengen", color="blue")
+    ax.set_title("Schengen Arrivals")
+    ax.set_ylabel("Flights")
+    ax.legend()
+
+    if arrivals_schengen_canvas is not None:
+        arrivals_schengen_canvas.get_tk_widget().destroy()
+
+    arrivals_schengen_canvas = FigureCanvasTkAgg(fig, master=arrivals_schengen_frame)
+    arrivals_schengen_canvas.draw()
+    arrivals_schengen_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=False)
+
+
+# ── Versión 3 y 4: asignación de puertas ──────────────────────────────────────
+
+def GatePlotClick():
+    global gate_plot_canvas
+    global current_terminal_index
+
+    if bcn is None:
+        messagebox.showerror("Error", "Airport structure not loaded.")
+        return
+
+    if not gates_assigned:
+        messagebox.showerror("Error", "Gates have not been assigned yet.\nPlease press Assign Gates first.")
+        return
+
+    fig = PlotAirportOccupancy(bcn, current_terminal_index)
+
+    if gate_plot_canvas is not None:
+        gate_plot_canvas.get_tk_widget().destroy()
+
+    gate_plot_canvas = FigureCanvasTkAgg(fig, master=gate_plot_frame)
+    gate_plot_canvas.draw()
+    gate_plot_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+
+def PlotDayOccupancyClick():
+    global day_occupancy_canvas
+
+    if bcn is None:
+        messagebox.showerror("Error", "Airport structure not loaded.")
+        return
+
+    # Usar movements si están disponibles, si no usar solo los arrivals
+    if len(movements) > 0:
+        aircrafts_to_plot = movements
+    elif len(aircrafts) > 0:
+        aircrafts_to_plot = aircrafts
+    else:
+        messagebox.showerror("Error", "No aircrafts loaded.")
+        return
+
+    fig = PlotDayOccupancy(bcn, aircrafts_to_plot)
+
+    if fig == -1:
+        messagebox.showerror("Error", "Could not create day occupancy plot.")
+        return
+
+    if day_occupancy_canvas is not None:
+        day_occupancy_canvas.get_tk_widget().destroy()
+
+    day_occupancy_canvas = FigureCanvasTkAgg(fig, master=day_occupancy_plot_frame)
+    day_occupancy_canvas.draw()
+    day_occupancy_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
 
 def LoadAirportStructureClick():
     global bcn
@@ -297,73 +527,137 @@ def LoadAirportStructureClick():
                                                      f"{len(bcn.terminals)} terminal(s) found.")
 
 
-def AssignGatesClick():
-    global bcn
+def ShowOccupancyClick():
+    global gates_assigned
 
     if bcn is None:
-        messagebox.showerror("Error", "Airport structure not loaded.\nPlease load the airport structure first.")
+        messagebox.showerror("Error", "Airport structure not loaded.")
         return
 
-    if len(aircrafts) == 0:
-        messagebox.showerror("Error", "No arrivals loaded.\nPlease load arrivals first.")
+    if not gates_assigned:
+        messagebox.showerror(
+            "Error",
+            "Gates have not been assigned yet.\nPlease press Assign Gates first."
+        )
         return
 
-    assigned = 0
-    no_terminal = 0
-    no_gate = 0
+    gate_occupancy_listbox.delete(0, tk.END)
 
-    for aircraft in aircrafts:
-        terminal_name = SearchTerminal(bcn, aircraft.comp)
-        if terminal_name == "":
-            no_terminal += 1
-        else:
-            result = AssignGate(bcn, aircraft)
-            if result == -1:
-                no_gate += 1
-            else:
-                assigned += 1
-
-    # Mostrar ventana con tabla de resultados
-    top = tk.Toplevel(window)
-    top.title("Gate Assignment")
-    top.geometry("600x450")
-
-    tk.Label(top, text=f"Assigned: {assigned}   |   No terminal found: {no_terminal}   |   No free gate: {no_gate}",
-             font=("Courier", 10, "bold")).pack(pady=(10, 2))
-
-    frame = tk.Frame(top)
-    frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-
-    scrollbar = tk.Scrollbar(frame)
-    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-    listbox = tk.Listbox(frame, yscrollcommand=scrollbar.set, font=("Courier", 10))
-    listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    scrollbar.config(command=listbox.yview)
-
-    header = f"{'GATE':<22} {'STATUS':<10} {'AIRCRAFT':<12} {'AIRLINE'}"
-    listbox.insert(tk.END, header)
-    listbox.insert(tk.END, "-" * 55)
+    header = f"{'GATE':<16} {'STATUS':<10} {'AIRCRAFT':<12} {'AIRLINE'}"
+    gate_occupancy_listbox.insert(tk.END, header)
+    gate_occupancy_listbox.insert(tk.END, "-" * 55)
 
     occupancy = GateOccupancy(bcn)
+
     for gate_info in occupancy:
         gate_name = gate_info[0]
         status = gate_info[1]
         aircraft_id = gate_info[2]
         comp = gate_info[3]
 
-        if status == "occupied":
-            listbox.insert(tk.END, f"{gate_name:<22} {'OCCUPIED':<10} {aircraft_id:<12} {comp}")
-        else:
-            listbox.insert(tk.END, f"{gate_name:<22} {'FREE':<10} {'':<12} {''}")
+        gate_occupancy_listbox.insert(tk.END, f"{gate_name:<16} {status.upper():<10} {aircraft_id:<12} {comp}")
 
-    tk.Button(top, text="Close", command=top.destroy).pack(pady=8)
+def IsValidTimeFormat(time):
+    # Acepta tanto H:MM como HH:MM
+    parts = time.split(":")
+
+    if len(parts) != 2:
+        return False
+
+    hour_text = parts[0]
+    minute_text = parts[1]
+
+    if not hour_text.isdigit() or not minute_text.isdigit():
+        return False
+
+    if len(minute_text) != 2:
+        return False
+
+    hour = int(hour_text)
+    minute = int(minute_text)
+
+    if hour < 0 or hour > 23:
+        return False
+
+    if minute < 0 or minute > 59:
+        return False
+
+    return True
+
+def AssignGatesAtTimeClick():
+    global bcn
+    global gates_assigned
+    global gates_assigned_at_time
+
+    if bcn is None:
+        messagebox.showerror("Error", "Airport structure not loaded.")
+        return
+
+    if len(aircrafts) == 0:
+        messagebox.showerror("Error", "No arrivals loaded.")
+        return
+
+    time = time_entry.get().strip()
+
+    if time == "":
+        messagebox.showerror("Error", "Please enter a time.")
+        return
+
+    if not IsValidTimeFormat(time):
+        messagebox.showerror(
+            "Error",
+            "Invalid time format.\n"
+            "Please enter the time as HH:MM or H:MM\n"
+            "Examples: 08:00, 14:30, 9:00\n"
+            "Hours must be 0-23, minutes 0-59."
+        )
+        return
+
+    # Usar movements si hay salidas cargadas, si no solo arrivals
+    if len(movements) > 0:
+        aircrafts_to_assign = movements
+    else:
+        aircrafts_to_assign = aircrafts
+
+    # Asignar puertas nocturnas solo la primera vez
+    if len(night_aircrafts) > 0 and not gates_assigned_at_time:
+        AssignNightGates(bcn, night_aircrafts)
+
+    result = AssignGatesAtTime(bcn, aircrafts_to_assign, time)
+
+    if result == -1:
+        messagebox.showerror("Error", "Gate assignment failed.")
+        return
+
+    gates_assigned = True
+    gates_assigned_at_time = True
+
+    ShowOccupancyClick()
+    GatePlotClick()
+
+    messagebox.showinfo("Assign Gates At Time", f"Gates assigned at {time}.\nNot assigned: {result}")
 
 
-# Construcción de la ventana
+def NextTerminalClick():
+    global current_terminal_index
+
+    if bcn is None:
+        messagebox.showerror("Error", "Airport structure not loaded.")
+        return
+
+    # Avanzar al siguiente terminal, volviendo al primero si se llega al final
+    current_terminal_index = current_terminal_index + 1
+
+    if current_terminal_index >= len(bcn.terminals):
+        current_terminal_index = 0
+
+    GatePlotClick()
+
+
+# ── Construcción de la ventana principal ──────────────────────────────────────
 
 window = tk.Tk()
-window.geometry("800x600")
+window.geometry("1920x1080")
 window.title("Airport project")
 window.rowconfigure(0, weight=0)
 window.rowconfigure(1, weight=1)
@@ -375,87 +669,244 @@ window.columnconfigure(1, weight=1)
 window.columnconfigure(2, weight=1)
 window.columnconfigure(3, weight=1)
 
-tituloLabel = Label(window, text="Versión 3", font=("Courier", 20, "italic"))
+tituloLabel = Label(window, text="Airport Management", font=("Courier", 20, "italic"))
 tituloLabel.grid(row=0, column=0, columnspan=5, padx=5, pady=5, sticky=N + S + E + W)
 
-list_frame = tk.LabelFrame(window, text="Aeropuertos")
-list_frame.grid(row=1, column=0, columnspan=5, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
-list_frame.rowconfigure(0, weight=1)
-list_frame.columnconfigure(0, weight=1)
+# Notebook con tres pestañas: aeropuertos, llegadas y puertas
+notebook = ttk.Notebook(window)
+notebook.grid(row=1, column=0, columnspan=5, sticky=N + S + E + W, padx=5, pady=5)
+
+airports_tab = tk.Frame(notebook)
+notebook.add(airports_tab, text="Airports")
+arrivals_tab = tk.Frame(notebook)
+notebook.add(arrivals_tab, text="Arrivals")
+gates_tab = tk.Frame(notebook)
+notebook.add(gates_tab, text="Gate Assignment")
+
+# ── Pestaña Airports ───────────────────────────────────────────────────────────
+
+airports_tab.columnconfigure(0, weight=0, minsize=360)
+airports_tab.columnconfigure(1, weight=1)
+airports_tab.rowconfigure(0, weight=1)
+
+left_frame = tk.Frame(airports_tab, width=360)
+left_frame.grid(row=0, column=0, sticky=N + S + E + W, padx=20, pady=20)
+left_frame.grid_propagate(False)
+left_frame.columnconfigure(0, weight=1)
+left_frame.columnconfigure(1, weight=3)
+
+right_frame = tk.Frame(airports_tab)
+right_frame.grid(row=0, column=1, sticky=N + S + E + W, padx=(40, 10), pady=10)
+
+# Columna izquierda: controles de añadir, eliminar y Schengen
+tk.Label(left_frame, text="Add Airport", font=("Courier", 12, "bold")).grid(row=0, column=0, columnspan=2, pady=5)
+
+tk.Label(left_frame, text="Code").grid(row=1, column=0, sticky=W)
+add_code_entry = tk.Entry(left_frame, width=25)
+add_code_entry.grid(row=1, column=1, pady=3, sticky=E + W)
+
+tk.Label(left_frame, text="Latitude").grid(row=2, column=0, sticky=W)
+add_lat_entry = tk.Entry(left_frame, width=25)
+add_lat_entry.grid(row=2, column=1, pady=3, sticky=E + W)
+
+tk.Label(left_frame, text="Longitude").grid(row=3, column=0, sticky=W)
+add_lon_entry = tk.Entry(left_frame, width=25)
+add_lon_entry.grid(row=3, column=1, pady=3, sticky=E + W)
+
+tk.Button(left_frame, text="Add", width=50, command=AddAirportFromEntries, bg='#D0CFEC').grid(row=4, column=0,columnspan=2, pady=8,sticky=E + W)
+
+tk.Label(left_frame, text="Delete Airport", font=("Courier", 12, "bold")).grid(row=5, column=0, columnspan=2, pady=10)
+
+tk.Label(left_frame, text="Code").grid(row=6, column=0, sticky=W)
+delete_code_entry = tk.Entry(left_frame, width=25)
+delete_code_entry.grid(row=6, column=1, pady=3, sticky=E + W)
+
+tk.Button(left_frame, text="Delete", width=50, command=DeleteAirportFromEntry, bg='#D0CFEC').grid(row=7, column=0,columnspan=2, pady=8,sticky=E + W)
+
+tk.Label(left_frame, text="Set Schengen", font=("Courier", 12, "bold")).grid(row=8, column=0, columnspan=2, pady=10)
+
+tk.Label(left_frame, text="Code").grid(row=9, column=0, sticky=W)
+set_code_entry = tk.Entry(left_frame, width=25)
+set_code_entry.grid(row=9, column=1, pady=3, sticky=E + W)
+
+tk.Button(left_frame, text="Set Schengen", width=50, command=SetSchengenFromEntry, bg='#D0CFEC').grid(row=10, column=0,columnspan=2,pady=8,sticky=E + W)
+
+tk.Button(left_frame, text="Save Schengen", width=50, command=SaveSchengenClick, bg='#FC8835').grid(row=11, column=0,columnspan=2,pady=(40, 8),sticky=E + W)
+
+tk.Button(left_frame, text="Google Earth", width=50, command=GoogleEarthClick, bg='#45CB85').grid(row=12, column=0,columnspan=2,pady=(20, 8),sticky=E + W)
+
+# Columna derecha: lista de aeropuertos y gráfico Schengen
+right_frame.columnconfigure(0, weight=1)
+right_frame.columnconfigure(1, weight=1)
+right_frame.rowconfigure(0, weight=1)
+right_frame.rowconfigure(1, weight=0)
+
+list_frame = tk.LabelFrame(right_frame, text="Airport List", width=650, height=900)
+list_frame.grid(row=0, column=0, padx=(20, 10), pady=(30, 5))
+list_frame.grid_propagate(False)
+list_frame.pack_propagate(False)
 
 scrollbar_ap = tk.Scrollbar(list_frame)
-scrollbar_ap.grid(row=0, column=1, sticky=tk.N + tk.S)
+scrollbar_ap.pack(side=tk.RIGHT, fill=tk.Y)
 
 airport_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar_ap.set, font=("Courier", 10))
-airport_listbox.grid(row=0, column=0, sticky=tk.N + tk.S + tk.E + tk.W)
+airport_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
 scrollbar_ap.config(command=airport_listbox.yview)
 
-# Frame Versión 1
+LoadAirportsButton = tk.Button(right_frame, text="Load Airports", command=LoadClick, bg='#608CEB')
+LoadAirportsButton.grid(row=1, column=0, pady=(0, 10))
 
-button_version1_frame = tk.LabelFrame(window, text="Versión 1")
-button_version1_frame.grid(row=2, column=0, columnspan=5, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+airport_plot_frame = tk.LabelFrame(right_frame, text="Schengen Plot", width=800, height=900)
+airport_plot_frame.grid(row=0, column=1, padx=(10, 20), pady=(30, 5))
+airport_plot_frame.grid_propagate(False)
+airport_plot_frame.pack_propagate(False)
 
-AddButton = tk.Button(button_version1_frame, text="Add Airport", command=AddClick)
-AddButton.grid(row=0, column=0, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+PlotSchengenButton = tk.Button(right_frame, text="Schengen Plot", command=PlotAirportsInside, bg='#FFDD4A')
+PlotSchengenButton.grid(row=1, column=1, pady=(0, 10))
 
-DeleteButton = tk.Button(button_version1_frame, text="Delete Airport", command=DeleteClick)
-DeleteButton.grid(row=0, column=1, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+# ── Pestaña Arrivals ───────────────────────────────────────────────────────────
 
-LoadButton = tk.Button(button_version1_frame, text="Load Airports", command=LoadClick)
-LoadButton.grid(row=0, column=2, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+arrivals_time_canvas = None
+arrivals_company_canvas = None
+arrivals_schengen_canvas = None
 
-SetSchengenButton = tk.Button(button_version1_frame, text="Set Schengen", command=SetSchengenClick)
-SetSchengenButton.grid(row=0, column=3, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+arrivals_tab.columnconfigure(0, weight=0, minsize=620)
+arrivals_tab.columnconfigure(1, weight=0, minsize=650)
 
-ShowButton = tk.Button(button_version1_frame, text="Airport List", command=ShowClick)
-ShowButton.grid(row=0, column=4, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+arrivals_tab.rowconfigure(0, weight=0, minsize=370)
+arrivals_tab.rowconfigure(1, weight=0, minsize=370)
 
-SaveSchengenButton = tk.Button(button_version1_frame, text="Save Schengen", command=SaveSchengenClick)
-SaveSchengenButton.grid(row=0, column=5, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+# Cuadrante superior izquierdo: botones y lista de llegadas
+arrivals_top_left_frame = tk.Frame(arrivals_tab, width=700, height=370)
+arrivals_top_left_frame.grid(row=0, column=0, padx=(20, 10), pady=20, sticky=N)
+arrivals_top_left_frame.grid_propagate(False)
 
-PlotSchengenButton = tk.Button(button_version1_frame, text="Plot Schengen", command=PlotAirportsClick)
-PlotSchengenButton.grid(row=0, column=6, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+arrivals_top_left_frame.columnconfigure(0, weight=0, minsize=210)
+arrivals_top_left_frame.columnconfigure(1, weight=0, minsize=380)
 
-GoogleEarthButton = tk.Button(button_version1_frame, text="Google Earth", command=GoogleEarthClick)
-GoogleEarthButton.grid(row=0, column=7, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+arrivals_left_frame = tk.Frame(arrivals_top_left_frame, width=260, height=350)
+arrivals_left_frame.grid(row=0, column=0, sticky=N, padx=(0, 10), pady=0)
+arrivals_left_frame.grid_propagate(False)
 
-# Frame Versión 2
+tk.Button(arrivals_left_frame, text="Load Arrivals", width=25, command=ArrivalsClick, bg='#608CEB').grid(row=0, column=0,padx=(20, 10),pady=(20, 5),sticky=E)
 
-button_version2_frame = tk.LabelFrame(window, text="Versión 2")
-button_version2_frame.grid(row=3, column=0, columnspan=5, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+tk.Button(arrivals_left_frame, text="Save Flights", width=25, command=SaveAircraftClick, bg='#FC8835').grid(row=1,column=0,padx=(20,10),pady=(5,20),sticky=E)
 
-ArrivalsButton = tk.Button(button_version2_frame, text="Load Arrivals", command=ArrivalsClick)
-ArrivalsButton.grid(row=0, column=0, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+tk.Button(arrivals_left_frame, text="Plot Arrivals/Time", width=25, command=PlotArrivalsTimeInside, bg='#FFDD4A').grid(
+    row=2, column=0, padx=(20, 10), pady=(20, 5), sticky=E)
 
-SaveAircraftButton = tk.Button(button_version2_frame, text="Save Aircraft", command=SaveAircraftClick)
-SaveAircraftButton.grid(row=0, column=1, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+tk.Button(arrivals_left_frame, text="Plot Arrivals/Company", width=25, command=PlotAirlinesInside, bg='#FFDD4A').grid(
+    row=3, column=0, padx=(20, 10), pady=5, sticky=E)
 
-PlotArrivalsTimeButton = tk.Button(button_version2_frame, text="Plot Arrivals/Time", command=PlotArrivalsTimeClick)
-PlotArrivalsTimeButton.grid(row=0, column=2, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+tk.Button(arrivals_left_frame, text="Plot Schengen Arrivals", width=25, command=PlotFlightsTypeInside,
+          bg='#FFDD4A').grid(row=4, column=0, padx=(20, 10), pady=(5, 20), sticky=E)
 
-PlotArrivalsCompanyButton = tk.Button(button_version2_frame, text="Plot Arrivals/Company",
-                                      command=PlotArrivalsCompanyClick)
-PlotArrivalsCompanyButton.grid(row=0, column=3, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+tk.Button(arrivals_left_frame, text="Show Trajectories", width=25, command=ShowTrajectoriesClick, bg='#45CB85').grid(
+    row=5, column=0, padx=(20, 10), pady=(20, 5), sticky=E)
 
-PlotSchengenArrivalsButton = tk.Button(button_version2_frame, text="Plot Schengen Arrivals", command=PlotSchengenClick)
-PlotSchengenArrivalsButton.grid(row=0, column=4, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+tk.Button(arrivals_left_frame, text="Show Long Trajectories", width=25, command=LongTrajectoriesClick,
+          bg='#45CB85').grid(row=6, column=0, padx=(20, 10), pady=5, sticky=E)
 
-ShowTrajectoriesButton = tk.Button(button_version2_frame, text="Show Trajectories", command=ShowTrajectoriesClick)
-ShowTrajectoriesButton.grid(row=0, column=5, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+arrivals_list_frame = tk.LabelFrame(arrivals_top_left_frame, text="Arrivals List", width=330, height=350)
+arrivals_list_frame.grid(row=0, column=1, sticky=N, padx=(0, 0), pady=0)
+arrivals_list_frame.grid_propagate(False)
+arrivals_list_frame.pack_propagate(False)
 
-ShowLongTrajectoriesButton = tk.Button(button_version2_frame, text="Show Long Trajectories",
-                                       command=LongTrajectoriesClick)
-ShowLongTrajectoriesButton.grid(row=0, column=6, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+scrollbar_arrivals = tk.Scrollbar(arrivals_list_frame)
+scrollbar_arrivals.pack(side=tk.RIGHT, fill=tk.Y)
 
-# Frame Versión 3
+arrivals_listbox = tk.Listbox(arrivals_list_frame, yscrollcommand=scrollbar_arrivals.set, font=("Courier", 10))
+arrivals_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-button_version3_frame = tk.LabelFrame(window, text="Versión 3")
-button_version3_frame.grid(row=4, column=0, columnspan=5, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+scrollbar_arrivals.config(command=arrivals_listbox.yview)
 
-LoadStructureButton = tk.Button(button_version3_frame, text="Load Airport Structure", command=LoadAirportStructureClick)
-LoadStructureButton.grid(row=0, column=0, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+# Cuadrantes de gráficos (Schengen, por compañía, por hora)
+arrivals_schengen_frame = tk.LabelFrame(arrivals_tab, text="Schengen Plot", width=550, height=320)
+arrivals_schengen_frame.grid(row=0, column=1, padx=(10, 10), pady=20, sticky=N + W)
+arrivals_schengen_frame.grid_propagate(False)
+arrivals_schengen_frame.pack_propagate(False)
 
-AssignGatesButton = tk.Button(button_version3_frame, text="Assign Gates", command=AssignGatesClick)
-AssignGatesButton.grid(row=0, column=1, padx=5, pady=5, sticky=tk.N + tk.S + tk.E + tk.W)
+arrivals_company_frame = tk.LabelFrame(arrivals_tab, text="Arrivals Company", width=550, height=320)
+arrivals_company_frame.grid(row=1, column=0, padx=(20, 10), pady=10, sticky=N)
+arrivals_company_frame.grid_propagate(False)
+arrivals_company_frame.pack_propagate(False)
+
+arrivals_time_frame = tk.LabelFrame(arrivals_tab, text="Arrivals Time", width=550, height=320)
+arrivals_time_frame.grid(row=1, column=1, padx=(10, 10), pady=10, sticky=N + W)
+arrivals_time_frame.grid_propagate(False)
+arrivals_time_frame.pack_propagate(False)
+
+# ── Pestaña Gate Assignment ────────────────────────────────────────────────────
+
+gate_plot_canvas = None
+day_occupancy_canvas = None
+
+gates_tab.columnconfigure(0, minsize=420)
+gates_tab.columnconfigure(1, minsize=650)
+
+gates_tab.rowconfigure(0, weight=1)
+gates_tab.rowconfigure(1, weight=1)
+
+gates_left_container = tk.Frame(gates_tab, width=650, height=1100)
+gates_left_container.grid(row=0, column=0, rowspan=2, sticky=N, padx=20, pady=20)
+gates_left_container.grid_propagate(False)
+
+gates_left_frame = tk.Frame(gates_left_container, width=500, height=210)
+gates_left_frame.grid(row=0, column=0)
+gates_left_frame.grid_propagate(False)
+
+gate_occupancy_frame = tk.LabelFrame(gates_tab, text="Gate Occupancy", width=550, height=450)
+gate_occupancy_frame.grid(row=0, column=1, padx=(0, 20), pady=(20, 10), sticky=W)
+gate_occupancy_frame.grid_propagate(False)
+gate_occupancy_frame.pack_propagate(False)
+
+day_occupancy_plot_frame = tk.LabelFrame(gates_tab, text="Day Occupancy Plot", width=550, height=450)
+day_occupancy_plot_frame.grid(row=1, column=1, padx=(0, 20), pady=(10, 20), sticky=W)
+day_occupancy_plot_frame.grid_propagate(False)
+day_occupancy_plot_frame.pack_propagate(False)
+
+gate_plot_frame = tk.LabelFrame(gates_left_container, text="Gate Plot", width=600, height=495)
+plot_controls = tk.Frame(gate_plot_frame)
+plot_controls.pack(side=tk.TOP, pady=5)
+gate_plot_frame.grid(row=1, column=0, padx=20, pady=(0, 20))
+gate_plot_frame.grid_propagate(False)
+gate_plot_frame.pack_propagate(False)
+
+scrollbar_gates = tk.Scrollbar(gate_occupancy_frame)
+scrollbar_gates.pack(side=tk.RIGHT, fill=tk.Y)
+
+gate_occupancy_listbox = tk.Listbox(gate_occupancy_frame, yscrollcommand=scrollbar_gates.set, font=("Courier", 12))
+gate_occupancy_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+scrollbar_gates.config(command=gate_occupancy_listbox.yview)
+
+gates_left_frame.columnconfigure(0, weight=1)
+gates_left_frame.columnconfigure(1, weight=1)
+
+# Columna izquierda: cargar estructura y salidas
+tk.Button(gates_left_frame, text="Load Airport Structure", width=25, command=LoadAirportStructureClick,
+          bg='#608CEB').grid(row=0, column=0, padx=(20, 10), pady=(40, 8))
+
+tk.Button(gates_left_frame, text="Load Departures", width=25, command=LoadDeparturesClick, bg='#608CEB').grid(row=1,column=0,padx=(20,10),pady=8)
+
+# Campo para introducir la hora de asignación (formato HH:MM)
+time_frame = tk.Frame(gates_left_frame)
+time_frame.grid(row=2, column=0, padx=(20, 10), pady=(15, 8))
+
+tk.Label(time_frame, text="Time (HH:MM)").pack(side=tk.LEFT, padx=(0, 5))
+
+time_entry = tk.Entry(time_frame, width=10)
+time_entry.pack(side=tk.LEFT)
+
+# Columna derecha: asignar puertas y mostrar gráficos
+tk.Button(gates_left_frame, text="Assign Gates At Time", width=25, command=AssignGatesAtTimeClick, bg='#D0CFEC').grid(
+    row=0, column=1, padx=(10, 20), pady=(40, 8))
+
+tk.Button(gates_left_frame, text="Plot Day Occupancy", width=25, command=PlotDayOccupancyClick, bg='#FFDD4A').grid(
+    row=1, column=1, padx=(10, 20), pady=8)
+
+# Botón para navegar entre terminales en el gráfico de puertas
+tk.Button(plot_controls, text="Next Terminal", command=NextTerminalClick, bg='#D0CFEC').pack(side=tk.LEFT, padx=5)
 
 window.mainloop()
